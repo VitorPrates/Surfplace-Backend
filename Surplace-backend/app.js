@@ -3,14 +3,17 @@ const express = require("express");
 const bcrypt = require('bcrypt');
 const path = require("path");
 const session = require('express-session');
-
-
-
+const cors = require("cors");
 const app = express();
+
+const produtosRoutes = require("./src/routes/produtos");
+
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/static', express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname + '/public'));
+
 
 // 1. Configuração do Middleware de Sessão
 app.use(session({
@@ -23,6 +26,13 @@ app.use(session({
   }
 }));
 
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+app.use("/api/produtos", produtosRoutes);
+app.use("/surfplace2", produtosRoutes);
 
 app.post("/cadastro", async (req, res) => {
     const nome = req.body.nome
@@ -73,9 +83,11 @@ app.get("/surfplace", (req, res) => {
   res.sendFile(path.join(__dirname, "./public/ola.html"));
 });
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "./public/index.html"));
-});
+// app.get("/", (req, res) => {
+//   res.sendFile(path.join(__dirname, "./public/index.html"));
+// });
+
+
 
 //verificar se o usuário está logado
 app.get("/api/usuario", (req, res) => {
