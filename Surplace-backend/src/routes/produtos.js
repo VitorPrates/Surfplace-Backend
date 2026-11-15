@@ -224,4 +224,27 @@ router.post("/", (req, res) => {
   });
 });
 
+
+router.get("/", async (req, res) => {
+  try {
+    const produtos = await Produto.find()
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      sucesso: true,
+      produtos
+    });
+
+  } catch (erro) {
+    console.error("Erro ao buscar produtos:", erro);
+
+    return res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro ao buscar produtos"
+    });
+  }
+});
+
+
 module.exports = router;
