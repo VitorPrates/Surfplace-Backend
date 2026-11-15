@@ -98,9 +98,6 @@ function converterTags(valor) {
   ];
 }
 
-router.get("/teste", (req, res) => {
-  res.send("heio");
-});
 
 router.post("/", (req, res) => {
     console.log("novo produto")

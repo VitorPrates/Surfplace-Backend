@@ -32,7 +32,7 @@ app.use(
 );
 
 app.use("/api/produtos", produtosRoutes);
-app.use("/surfplace2", produtosRoutes);
+// app.use("/surfplace2", produtosRoutes);
 
 app.post("/cadastro", async (req, res) => {
     const nome = req.body.nome
