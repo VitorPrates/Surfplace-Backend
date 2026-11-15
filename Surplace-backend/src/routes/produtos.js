@@ -43,7 +43,7 @@ const upload = multer({
   limits: {
     files: 5,
     fileSize: 5 * 1024 * 1024,
-    fields: 4,
+    fields: 5,
     fieldSize: 64 * 1024
   },
 
@@ -120,11 +120,26 @@ router.post("/", (req, res) => {
     }
 
     try {
-      const { nome, preco, descricao, tags } = req.body;
+        const { nome, preco, descricao, quantidade, tags } = req.body;
+        const precoCentavos = converterPreco(preco);
+        const tagsConvertidas = converterTags(tags);
+        const quantidadeConvertida =
+        typeof quantidade === "string" &&
+        /^\d+$/.test(quantidade.trim())
+            ? Number(quantidade.trim())
+            : NaN;
 
-      const precoCentavos = converterPreco(preco);
-      const tagsConvertidas = converterTags(tags);
+        if (
+        !Number.isSafeInteger(quantidadeConvertida) ||
+        quantidadeConvertida < 0
+        ) {
+        await limparArquivos(req.files);
 
+        return res.status(400).json({
+            sucesso: false,
+            mensagem: "A quantidade deve ser um número inteiro maior ou igual a zero"
+        });
+        }
       if (
         typeof nome !== "string" ||
         !nome.trim() ||
@@ -175,10 +190,11 @@ router.post("/", (req, res) => {
       const produto = await Produto.create({
         nome: nome.trim(),
         precoCentavos,
+        quantidade: quantidadeConvertida,
         descricao: descricao.trim(),
         tags: tagsConvertidas,
         fotos
-      });
+        });
 
       return res.status(201).json({
         sucesso: true,
