@@ -3,6 +3,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs/promises");
+const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const Produto = require("../models/Produto");
 
@@ -43,7 +44,7 @@ const upload = multer({
   limits: {
     files: 5,
     fileSize: 5 * 1024 * 1024,
-    fields: 5,
+    fields: 6,
     fieldSize: 64 * 1024
   },
 
@@ -246,5 +247,317 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verifica se o ID é válido
+    if (!mongoose.isObjectIdOrHexString(id)) {
+      return res.status(400).json({
+        sucesso: false,
+        mensagem: "ID do produto inválido"
+      });
+    }
+
+    // Busca o produto no MongoDB
+    const produto = await Produto.findById(id);
+
+    if (!produto) {
+      return res.status(404).json({
+        sucesso: false,
+        mensagem: "Produto não encontrado"
+      });
+    }
+
+    // Exclui o produto do banco
+    await Produto.findByIdAndDelete(id);
+
+    // Remove as imagens do servidor
+    const resultados = await Promise.allSettled(
+      produto.fotos.map(async (foto) => {
+        const nomeArquivo = path.basename(foto);
+
+        const caminho = path.join(
+          pastaUploads,
+          nomeArquivo
+        );
+
+        await fs.unlink(caminho);
+      })
+    );
+
+    // Registra falhas de remoção de imagens
+    const falhas = resultados.filter(
+      (resultado) => resultado.status === "rejected"
+    );
+
+    if (falhas.length > 0) {
+      console.error(
+        "Algumas imagens não foram removidas:",
+        falhas
+      );
+    }
+
+    return res.status(200).json({
+      sucesso: true,
+      mensagem: "Produto excluído com sucesso"
+    });
+
+  } catch (erro) {
+    console.error("Erro ao excluir produto:", erro);
+
+    return res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro interno ao excluir produto"
+    });
+  }
+});
+
+
+
+router.put("/:id", (req, res) => {
+  upload.array("fotos", 5)(req, res, async (erroUpload) => {
+
+    if (erroUpload) {
+      await limparArquivos(req.files);
+
+      return res.status(400).json({
+        sucesso: false,
+        mensagem: erroUpload.message
+      });
+    }
+
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.isObjectIdOrHexString(id)) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "ID inválido"
+        });
+      }
+
+      const produto = await Produto.findById(id);
+
+      if (!produto) {
+        await limparArquivos(req.files);
+
+        return res.status(404).json({
+          sucesso: false,
+          mensagem: "Produto não encontrado"
+        });
+      }
+
+      const {
+        nome,
+        preco,
+        descricao,
+        quantidade,
+        tags,
+        fotosMantidas
+      } = req.body;
+
+      const precoCentavos = converterPreco(preco);
+      const tagsConvertidas = converterTags(tags);
+
+      const quantidadeConvertida =
+        typeof quantidade === "string" &&
+        /^\d+$/.test(quantidade.trim())
+          ? Number(quantidade.trim())
+          : NaN;
+
+      // Validar dados do produto
+      if (
+        typeof nome !== "string" ||
+        !nome.trim() ||
+        nome.trim().length > 60
+      ) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Nome inválido"
+        });
+      }
+
+      if (precoCentavos === null) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Preço inválido"
+        });
+      }
+
+      if (
+        !Number.isSafeInteger(quantidadeConvertida) ||
+        quantidadeConvertida < 0
+      ) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Quantidade inválida"
+        });
+      }
+
+      if (
+        typeof descricao !== "string" ||
+        !descricao.trim()
+      ) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Descrição obrigatória"
+        });
+      }
+
+      if (tagsConvertidas === null) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Tags inválidas"
+        });
+      }
+
+      // Receber lista de fotos que serão mantidas
+      let fotosExistentes;
+
+      try {
+        fotosExistentes = JSON.parse(fotosMantidas);
+      } catch {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Lista de fotos mantidas inválida"
+        });
+      }
+
+      if (
+        !Array.isArray(fotosExistentes) ||
+        !fotosExistentes.every(
+          (foto) => typeof foto === "string"
+        )
+      ) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Formato das fotos inválido"
+        });
+      }
+
+      // Somente fotos pertencentes ao produto
+      const fotosOriginais = produto.fotos || [];
+
+      const fotosAutorizadas = new Set(fotosOriginais);
+
+      const fotosValidas =
+        fotosExistentes.every(
+          (foto) => fotosAutorizadas.has(foto)
+        ) &&
+        new Set(fotosExistentes).size ===
+          fotosExistentes.length;
+
+      if (!fotosValidas) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Uma ou mais fotos não pertencem ao produto"
+        });
+      }
+
+      const novasFotos = (req.files || []).map(
+        (arquivo) => `/uploads/produtos/${arquivo.filename}`
+      );
+
+      const fotosAtualizadas = [
+        ...fotosExistentes,
+        ...novasFotos
+      ];
+
+      if (fotosAtualizadas.length > 5) {
+        await limparArquivos(req.files);
+
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Máximo de 5 fotos por produto"
+        });
+      }
+
+      // Identificar imagens removidas
+      const fotosRemovidas = fotosOriginais.filter(
+        (foto) => !fotosExistentes.includes(foto)
+      );
+
+      // Atualizar dados do produto
+      produto.nome = nome.trim();
+      produto.precoCentavos = precoCentavos;
+      produto.quantidade = quantidadeConvertida;
+      produto.descricao = descricao.trim();
+      produto.tags = tagsConvertidas;
+      produto.fotos = fotosAtualizadas;
+
+      await produto.save();
+
+      // Somente após salvar, remover fotos antigas
+      const resultados = await Promise.allSettled(
+        fotosRemovidas.map((foto) => {
+          const nomeArquivo = path.basename(foto);
+          const caminho = path.join(
+            pastaUploads,
+            nomeArquivo
+          );
+
+          return fs.unlink(caminho);
+        })
+      );
+
+      const falhas = resultados.filter(
+        (resultado) => resultado.status === "rejected"
+      );
+
+      if (falhas.length > 0) {
+        console.error(
+          "Falha ao remover algumas fotos antigas:",
+          falhas
+        );
+      }
+
+      return res.status(200).json({
+        sucesso: true,
+        mensagem: "Produto atualizado com sucesso",
+        produto
+      });
+
+    } catch (erro) {
+      await limparArquivos(req.files);
+
+      console.error("Erro ao editar produto:", erro);
+
+      if (erro.name === "ValidationError") {
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Dados inválidos",
+          erros: Object.values(erro.errors).map(
+            (item) => item.message
+          )
+        });
+      }
+
+      return res.status(500).json({
+        sucesso: false,
+        mensagem: "Erro interno ao editar produto"
+      });
+    }
+  });
+});
 
 module.exports = router;
