@@ -103,6 +103,53 @@ router.get("/:id/produtos", async (req, res) => {
 });
 
 
+router.get("/buscar-cidade", async (req, res) => {
+  try {
+    const cidade = req.query.q;
+
+    if (
+      typeof cidade !== "string" ||
+      cidade.trim().length < 2 ||
+      cidade.trim().length > 100 ||
+      !/^[\p{L}\p{M}\d\s,.'-]+$/u.test(cidade)
+    ) {
+      return res.status(400).json({
+        sucesso: false,
+        mensagem: "Informe uma cidade válida."
+      });
+    }
+
+    const { geocodificar } = require(
+      "../services/geocodificacao"
+    );
+
+    const resultado = await geocodificar(
+      `${cidade.trim()}, Brasil`
+    );
+
+    return res.json({
+      sucesso: true,
+      coordenadas: {
+        lat: resultado.latitude,
+        lng: resultado.longitude
+      },
+      localEncontrado: resultado.descricao
+    });
+
+  } catch (erro) {
+    return res.status(erro.status || 502).json({
+      sucesso: false,
+      mensagem:
+        erro.status === 404
+          ? "Cidade não encontrada."
+          : erro.status === 429
+            ? "Aguarde um instante para pesquisar novamente."
+            : "Não foi possível localizar a cidade."
+    });
+  }
+});
+
+
 router.use(exigirLogin);
 
 // Retorna a loja do usuário autenticado
