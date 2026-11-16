@@ -3,8 +3,105 @@ const express = require("express");
 const Loja = require("../models/Loja");
 const exigirLogin = require("../middlewares/exigirLogin");
 const { geocodificar } = require("../services/geocodificacao");
+const mongoose = require("mongoose");
+const Produto = require("../models/Produto");
 
 const router = express.Router();
+
+
+router.get("/mapa", async (req, res) => {
+  try {
+    const lojas = await Loja.find({
+      "localizacao.type": "Point",
+      "localizacao.coordinates.0": {
+        $gte: -180,
+        $lte: 180
+      },
+      "localizacao.coordinates.1": {
+        $gte: -90,
+        $lte: 90
+      }
+    })
+      .select(
+        "nome logo descricao endereco.cidade endereco.uf localizacao"
+      )
+      .limit(500)
+      .lean();
+
+    const lojasValidas = lojas.filter((loja) => {
+      const coords = loja.localizacao?.coordinates;
+
+      return (
+        Array.isArray(coords) &&
+        coords.length === 2 &&
+        coords.every(Number.isFinite)
+      );
+    });
+
+    return res.status(200).json({
+      sucesso: true,
+      lojas: lojasValidas
+    });
+
+  } catch (erro) {
+    console.error("Erro ao carregar lojas do mapa:", erro);
+
+    return res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro ao buscar lojas."
+    });
+  }
+});
+
+
+router.get("/:id/produtos", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isObjectIdOrHexString(id)) {
+      return res.status(400).json({
+        sucesso: false,
+        mensagem: "ID da loja inválido."
+      });
+    }
+
+    const loja = await Loja.findById(id)
+      .select("nome logo descricao endereco.cidade endereco.uf")
+      .lean();
+
+    if (!loja) {
+      return res.status(404).json({
+        sucesso: false,
+        mensagem: "Loja não encontrada."
+      });
+    }
+
+    const produtos = await Produto.find({
+      loja: id
+    })
+      .select(
+        "nome precoCentavos quantidade fotos descricao"
+      )
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.status(200).json({
+      sucesso: true,
+      loja,
+      produtos
+    });
+
+  } catch (erro) {
+    console.error("Erro ao buscar produtos da loja:", erro);
+
+    return res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro ao buscar produtos."
+    });
+  }
+});
+
 
 router.use(exigirLogin);
 
@@ -272,7 +369,7 @@ router.put("/minha/endereco", async (req, res) => {
         }
       },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true
       }
     );
