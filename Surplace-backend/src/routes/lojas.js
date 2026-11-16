@@ -150,6 +150,67 @@ router.get("/buscar-cidade", async (req, res) => {
 });
 
 
+router.get(
+  "/:lojaId/produtos/:produtoId",
+  async (req, res) => {
+    try {
+      const { lojaId, produtoId } = req.params;
+
+      if (
+        !mongoose.isObjectIdOrHexString(lojaId) ||
+        !mongoose.isObjectIdOrHexString(produtoId)
+      ) {
+        return res.status(400).json({
+          sucesso: false,
+          mensagem: "Identificador inválido."
+        });
+      }
+
+      const loja = await Loja.findById(lojaId)
+        .select("nome logo endereco.cidade endereco.uf")
+        .lean();
+
+      if (!loja) {
+        return res.status(404).json({
+          sucesso: false,
+          mensagem: "Loja não encontrada."
+        });
+      }
+
+      const produto = await Produto.findOne({
+        _id: produtoId,
+        loja: lojaId
+      })
+        .select(
+          "nome precoCentavos quantidade fotos descricao tags loja"
+        )
+        .lean();
+
+      if (!produto) {
+        return res.status(404).json({
+          sucesso: false,
+          mensagem: "Produto não encontrado."
+        });
+      }
+
+      return res.json({
+        sucesso: true,
+        loja,
+        produto
+      });
+
+    } catch (erro) {
+      console.error("Erro ao buscar produto:", erro);
+
+      return res.status(500).json({
+        sucesso: false,
+        mensagem: "Erro ao carregar produto."
+      });
+    }
+  }
+);
+
+
 router.use(exigirLogin);
 
 // Retorna a loja do usuário autenticado

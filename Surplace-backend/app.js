@@ -7,6 +7,7 @@ const cors = require("cors");
 const produtosRoutes = require("./src/routes/produtos");
 const userRoutes = require("./src/routes/userRoutes");
 const lojasRoutes = require("./src/routes/lojas");
+const checkoutRoutes = require("./src/routes/checkout");
 const exigirLogin = require("./src/middlewares/exigirLogin");
 
 const app = express();
@@ -54,7 +55,7 @@ app.use(
 
 app.use("/api/lojas", lojasRoutes);
 
-
+app.use("/api/checkout", checkoutRoutes);
 
 // Tratamento de erros
 app.use((erro, req, res, next) => {
