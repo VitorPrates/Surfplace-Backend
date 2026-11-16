@@ -6,12 +6,15 @@ const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const Produto = require("../models/Produto");
+const exigirLoja = require("../middlewares/exigirLoja");
 
 const router = express.Router();
 
+router.use(exigirLoja);
+
 const pastaUploads = path.join(
   __dirname,
-  "../uploads/produtos"
+  "../Uploads/produtos"
 );
 
 const tiposPermitidos = {
@@ -189,6 +192,7 @@ router.post("/", (req, res) => {
       );
 
       const produto = await Produto.create({
+        loja: req.loja._id,
         nome: nome.trim(),
         precoCentavos,
         quantidade: quantidadeConvertida,
@@ -228,9 +232,11 @@ router.post("/", (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const produtos = await Produto.find()
-      .sort({ createdAt: -1 })
-      .lean();
+   const produtos = await Produto.find({
+    loja: req.loja._id
+    })
+    .sort({ createdAt: -1 })
+    .lean();
 
     return res.status(200).json({
       sucesso: true,
@@ -261,8 +267,10 @@ router.delete("/:id", async (req, res) => {
     }
 
     // Busca o produto no MongoDB
-    const produto = await Produto.findById(id);
-
+    const produto = await Produto.findOne({
+    _id: id,
+    loja: req.loja._id
+    });
     if (!produto) {
       return res.status(404).json({
         sucesso: false,
@@ -271,8 +279,10 @@ router.delete("/:id", async (req, res) => {
     }
 
     // Exclui o produto do banco
-    await Produto.findByIdAndDelete(id);
-
+    await Produto.deleteOne({
+    _id: produto._id,
+    loja: req.loja._id
+    });
     // Remove as imagens do servidor
     const resultados = await Promise.allSettled(
       produto.fotos.map(async (foto) => {
@@ -340,8 +350,10 @@ router.put("/:id", (req, res) => {
         });
       }
 
-      const produto = await Produto.findById(id);
-
+      const produto = await Produto.findOne({
+        _id: id,
+        loja: req.loja._id
+        });
       if (!produto) {
         await limparArquivos(req.files);
 

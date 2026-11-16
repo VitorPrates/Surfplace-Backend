@@ -47,7 +47,15 @@ const produtoSchema = new mongoose.Schema(
     tags: {
       type: [String],
       default: []
-    }
+    },
+
+    loja: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Loja",
+      required: [true, "O produto deve pertencer a uma loja"],
+      index: true
+    },
+
   },
   {
     timestamps: true
