@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const Loja = require("../models/Loja");
 const exigirLogin = require("../middlewares/exigirLogin");
 const { criptografar } = require("../utils/segredos");
-
+const { descriptografar } = require("../utils/segredos");
 const router = express.Router();
 
 // Iniciar conexão
@@ -252,5 +252,119 @@ router.get("/testar-conexao", exigirLogin, async (req, res) => {
   }
 });
 
+
+router.post(
+  "/testar-preferencia",
+  exigirLogin,
+  async (req, res) => {
+    // Disponível somente durante o desenvolvimento
+    if (process.env.NODE_ENV !== "development") {
+      return res.status(404).json({
+        sucesso: false,
+        mensagem: "Rota indisponível."
+      });
+    }
+
+    try {
+      // Buscar a loja da sessão atual
+      const loja = await Loja.findOne({
+        proprietario: req.session.usuarioLogado.id
+      }).select(
+        "+mercadoPago.accessTokenEnc " +
+        "mercadoPago.userId " +
+        "mercadoPago.expiresAt"
+      );
+
+      if (
+        !loja?.mercadoPago?.accessTokenEnc ||
+        !loja.mercadoPago.userId
+      ) {
+        return res.status(409).json({
+          sucesso: false,
+          mensagem: "Conecte o Mercado Pago primeiro."
+        });
+      }
+
+      if (
+        !loja.mercadoPago.expiresAt ||
+        loja.mercadoPago.expiresAt <= new Date()
+      ) {
+        return res.status(409).json({
+          sucesso: false,
+          mensagem: "Token expirado. Renove a conexão."
+        });
+      }
+
+      const accessToken = descriptografar(
+        loja.mercadoPago.accessTokenEnc
+      );
+
+      // Produto fictício somente para testar a API
+      const preferencia = {
+        items: [{
+          id: "teste-surfplace",
+          title: "Produto Teste Surfplace",
+          quantity: 1,
+          currency_id: "BRL",
+          unit_price: 10.00
+        }],
+
+        external_reference:
+          `teste-${require("crypto").randomUUID()}`
+      };
+
+      // Criar preferência na conta do vendedor
+      const resposta = await fetch(
+        "https://api.mercadopago.com/checkout/preferences",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify(preferencia),
+          signal: AbortSignal.timeout(15000)
+        }
+      );
+
+      const dados = await resposta.json();
+
+      if (!resposta.ok || !dados.id) {
+        console.error(
+          "Falha ao criar preferência:",
+          resposta.status
+        );
+
+        return res.status(502).json({
+          sucesso: false,
+          mensagem: "Falha ao criar preferência.",
+          statusProvedor: resposta.status
+        });
+      }
+
+      return res.json({
+        sucesso: true,
+        mensagem: "Preferência criada com sucesso!",
+        preferenciaId: dados.id,
+        contaCorreta:
+          String(dados.collector_id) ===
+          String(loja.mercadoPago.userId),
+        urlPagamento: dados.init_point
+      });
+
+    } catch (erro) {
+      console.error(
+        "Erro no teste de preferência:",
+        erro.message
+      );
+
+      return res.status(502).json({
+        sucesso: false,
+        mensagem: "Não foi possível criar a preferência."
+      });
+    }
+  }
+);
 
 module.exports = router;
