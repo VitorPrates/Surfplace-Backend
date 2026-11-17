@@ -113,7 +113,30 @@ const lojaSchema = new mongoose.Schema(
         default: ""
     }
     },
+    mercadoPago: {
+        userId: {
+            type: String,
+            default: null
+        },
 
+        accessTokenEnc: {
+            type: String,
+            select: false
+        },
+
+        refreshTokenEnc: {
+            type: String,
+            select: false
+        },
+
+        expiresAt: {
+            type: Date
+        },
+
+        conectadoEm: {
+            type: Date
+        }
+    }
   },
   {
     timestamps: true

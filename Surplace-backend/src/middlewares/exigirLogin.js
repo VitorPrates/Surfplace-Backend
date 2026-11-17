@@ -6,6 +6,6 @@ module.exports = function exigirLogin(req, res, next) {
       mensagem: "É necessário estar logado."
     });
   }
-
+  
   next();
 };

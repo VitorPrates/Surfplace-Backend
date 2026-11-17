@@ -9,6 +9,9 @@ const userRoutes = require("./src/routes/userRoutes");
 const lojasRoutes = require("./src/routes/lojas");
 const checkoutRoutes = require("./src/routes/checkout");
 const exigirLogin = require("./src/middlewares/exigirLogin");
+const mercadoPagoRoutes = require(
+  "./src/routes/mercadopago"
+);
 
 const app = express();
 
@@ -30,6 +33,7 @@ app.use(
   express.static(path.join(__dirname, "./src/Uploads"))
 );
 
+
 // Sessão
 app.use(session({
   name: "connect.sid",
@@ -47,15 +51,21 @@ app.use(session({
 // Rotas
 app.use("/api", userRoutes);
 
+
+
 app.use(
   "/api/produtos",
   exigirLogin,
   produtosRoutes
 );
 
+
+
 app.use("/api/lojas", lojasRoutes);
 
 app.use("/api/checkout", checkoutRoutes);
+
+app.use("/api/mercadopago", mercadoPagoRoutes);
 
 // Tratamento de erros
 app.use((erro, req, res, next) => {
