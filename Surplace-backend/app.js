@@ -9,6 +9,8 @@ const userRoutes = require("./src/routes/userRoutes");
 const lojasRoutes = require("./src/routes/lojas");
 const checkoutRoutes = require("./src/routes/checkout");
 const exigirLogin = require("./src/middlewares/exigirLogin");
+const checkoutDemoRoutes = require("./src/routes/checkoutDemo");
+const pedidosRoutes = require("./src/routes/pedidos");
 const mercadoPagoRoutes = require(
   "./src/routes/mercadopago"
 );
@@ -50,8 +52,9 @@ app.use(session({
 
 // Rotas
 app.use("/api", userRoutes);
+app.use("/api/pedidos", pedidosRoutes);
 
-
+app.use("/api/checkout", checkoutDemoRoutes);
 
 app.use(
   "/api/produtos",
@@ -64,6 +67,8 @@ app.use(
 app.use("/api/lojas", lojasRoutes);
 
 app.use("/api/checkout", checkoutRoutes);
+
+app.use("/api/checkout", checkoutDemoRoutes);
 
 app.use("/api/mercadopago", mercadoPagoRoutes);
 
