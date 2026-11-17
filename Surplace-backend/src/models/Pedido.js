@@ -54,7 +54,12 @@ const pedidoSchema = new mongoose.Schema(
       required: true,
       index: true
     },
-
+    chaveCheckout: {
+        type: String,
+        required: true,
+        immutable: true,
+        trim: true
+    },
     itens: {
       type: [itemPedidoSchema],
       required: true,
@@ -112,7 +117,10 @@ const pedidoSchema = new mongoose.Schema(
         type: String,
         default: null
       },
-
+      urlPagamento: {
+        type: String,
+        default: null
+        },
       vendedorId: {
         type: String,
         default: null
@@ -179,6 +187,10 @@ pedidoSchema.index(
       }
     }
   }
+);
+pedidoSchema.index(
+  { comprador: 1, chaveCheckout: 1 },
+  { unique: true }
 );
 
 module.exports = mongoose.model(

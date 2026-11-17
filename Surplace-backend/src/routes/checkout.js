@@ -158,7 +158,18 @@ const preference = new Preference(client);
 router.post("/criar", exigirLogin, async (req, res) => {
   try {
     const compradorId = req.session?.usuarioLogado?.id;
-    const { produtoId, quantidade } = req.body;
+    const { produtoId, quantidade, chaveCheckout } = req.body;
+
+    if (
+    typeof chaveCheckout !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        .test(chaveCheckout)
+    ) {
+    return res.status(400).json({
+        sucesso: false,
+        mensagem: "Identificador da tentativa de compra inválido."
+    });
+    }
 
     // 1. Validar comprador e dados
     if (!compradorId) {
@@ -177,6 +188,47 @@ router.post("/criar", exigirLogin, async (req, res) => {
         sucesso: false,
         mensagem: "Produto ou quantidade inválidos."
       });
+    }
+
+    const pedidoExistente = await Pedido.findOne({
+    comprador: compradorId,
+    chaveCheckout
+    });
+
+    if (pedidoExistente) {
+    if (pedidoExistente.mercadoPago?.preferenciaId) {
+        return res.status(200).json({
+        sucesso: true,
+        reutilizado: true,
+        pedidoId: pedidoExistente._id,
+        preferenciaId:
+            pedidoExistente.mercadoPago.preferenciaId,
+        urlPagamento:
+            pedidoExistente.mercadoPago.urlPagamento,
+        totalCentavos: pedidoExistente.totalCentavos
+        });
+    }
+    const mesmoProduto =
+    String(pedidoExistente.itens[0]?.produto) ===
+    String(produtoId);
+
+    const mesmaQuantidade =
+    pedidoExistente.itens[0]?.quantidade === quantidade;
+
+    if (!mesmoProduto || !mesmaQuantidade) {
+    return res.status(409).json({
+        sucesso: false,
+        mensagem:
+        "Esta chave já foi utilizada para outra compra."
+    });
+    }
+
+    return res.status(409).json({
+        sucesso: false,
+        mensagem:
+        "Esta tentativa já foi registrada, mas ainda não possui uma preferência confirmada.",
+        pedidoId: pedidoExistente._id
+    });
     }
 
     // 2. Buscar o produto verdadeiro
@@ -279,8 +331,9 @@ router.post("/criar", exigirLogin, async (req, res) => {
 
     // 6. Preparar o pedido pendente
     const pedido = new Pedido({
-      comprador: compradorId,
-      loja: loja._id,
+        comprador: compradorId,
+        chaveCheckout,
+        loja: loja._id,
 
       itens: [
         {
@@ -382,6 +435,8 @@ router.post("/criar", exigirLogin, async (req, res) => {
 
     // 9. Salvar a preferência gerada
     pedido.mercadoPago.preferenciaId = String(dados.id);
+    pedido.mercadoPago.urlPagamento = dados.init_point;
+
     await pedido.save();
 
     // 10. Entregar URL ao frontend
@@ -394,6 +449,13 @@ router.post("/criar", exigirLogin, async (req, res) => {
     });
 
   } catch (erro) {
+    if (erro.code === 11000) {
+    return res.status(409).json({
+        sucesso: false,
+        mensagem:
+        "Esta tentativa de checkout já foi registrada. Consulte o pedido existente."
+    });
+    }
     console.error(
       "[Checkout] Erro:",
       erro.message
