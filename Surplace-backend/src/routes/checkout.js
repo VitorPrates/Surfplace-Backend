@@ -154,6 +154,72 @@ const preference = new Preference(client);
 
 // Apenas usuários autenticados podem comprar
 
+router.get("/resumo", exigirLogin, async (req, res) => {
+  try {
+    const { produtoId } = req.query;
+    const quantidade = Number(req.query.quantidade);
+
+    if (
+      !mongoose.isValidObjectId(produtoId) ||
+      !Number.isSafeInteger(quantidade) ||
+      quantidade < 1
+    ) {
+      return res.status(400).json({
+        mensagem: "Dados da compra inválidos."
+      });
+    }
+
+    const produto = await Produto.findById(produtoId)
+      .select("nome precoCentavos quantidade loja fotos")
+      .populate("loja", "nome");
+
+    if (!produto || !produto.loja) {
+      return res.status(404).json({
+        mensagem: "Produto ou loja não encontrado."
+      });
+    }
+
+    if (produto.quantidade < quantidade) {
+      return res.status(409).json({
+        mensagem: "Estoque insuficiente."
+      });
+    }
+
+    const totalCentavos =
+      produto.precoCentavos * quantidade;
+
+    if (
+      !Number.isSafeInteger(totalCentavos) ||
+      totalCentavos <= 0
+    ) {
+      return res.status(400).json({
+        mensagem: "Preço inválido."
+      });
+    }
+
+    return res.json({
+      produto: {
+        _id: produto._id,
+        nome: produto.nome,
+        precoCentavos: produto.precoCentavos
+      },
+      loja: {
+        _id: produto.loja._id,
+        nome: produto.loja.nome
+      },
+      quantidade,
+      totalCentavos
+    });
+
+  } catch (erro) {
+    console.error("[Checkout resumo]", erro.message);
+
+    return res.status(500).json({
+      mensagem: "Não foi possível consultar a compra."
+    });
+  }
+});
+
 
 router.post("/criar", exigirLogin, async (req, res) => {
   try {

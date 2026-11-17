@@ -25,7 +25,16 @@ const itemPedidoSchema = new mongoose.Schema(
         message: "Quantidade inválida"
       }
     },
+    tipoPagamento: {
+        type: String,
+        enum: ["mercadopago", "simulado"],
+        default: "mercadopago"
+    },
 
+    simulado: {
+        type: Boolean,
+        default: false
+    },
     precoUnitarioCentavos: {
       type: Number,
       required: true,
