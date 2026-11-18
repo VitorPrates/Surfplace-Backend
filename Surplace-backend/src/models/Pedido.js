@@ -87,7 +87,16 @@ const pedidoSchema = new mongoose.Schema(
         message: "Total inválido"
       }
     },
+    tipoPagamento: {
+      type: String,
+      enum: ["mercadopago", "simulado"],
+      default: "mercadopago"
+    },
 
+    simulado: {
+      type: Boolean,
+      default: false
+    },
     // Situação financeira
     statusPagamento: {
       type: String,

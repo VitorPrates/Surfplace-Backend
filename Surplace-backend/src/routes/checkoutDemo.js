@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const Produto = require("../models/Produto");
 const Pedido = require("../models/Pedido");
 const exigirLogin = require("../middlewares/exigirLogin");
+const crypto = require("node:crypto");
 
 const router = express.Router();
 
@@ -203,6 +204,9 @@ router.post("/simular", exigirLogin, async (req, res) => {
 
             statusPagamento: "aprovado",
             statusPedido: "pendente",
+            codigoRetirada: crypto.randomBytes(6)
+                .toString("hex")
+                .toUpperCase(),
 
             pagoEm: new Date()
           }],
