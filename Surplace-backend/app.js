@@ -11,6 +11,7 @@ const checkoutRoutes = require("./src/routes/checkout");
 const exigirLogin = require("./src/middlewares/exigirLogin");
 const checkoutDemoRoutes = require("./src/routes/checkoutDemo");
 const pedidosRoutes = require("./src/routes/pedidos");
+const financeiroRoutes = require("./src/routes/financeiro");
 const mercadoPagoRoutes = require(
   "./src/routes/mercadopago"
 );
@@ -72,6 +73,7 @@ app.use("/api/checkout", checkoutDemoRoutes);
 
 app.use("/api/mercadopago", mercadoPagoRoutes);
 
+app.use("/api/financeiro", financeiroRoutes);
 // Tratamento de erros
 app.use((erro, req, res, next) => {
   console.error(erro);
